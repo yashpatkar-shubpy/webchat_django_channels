@@ -1,0 +1,329 @@
+<!doctype html>
+<html>
+<head>
+  <title>Home - Chat</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    button {
+      padding: 6px 12px;
+      border: none;
+      background: #2d6cdf;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1f4fbf;
+    }
+
+    .checkbox-row {
+      margin-bottom: 6px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .small-text {
+      color: #555;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <h2>Chat Home</h2>
+    <div class="small-text">
+      {{ request.user.email }}
+      <button onclick="logoutUser()">Logout</button>
+    </div>
+  </div>
+
+  <!-- 1-1 Chat -->
+  <div class="card">
+    <h3>Users (1-1 Chat)</h3>
+    <div id="user-list">Loading...</div>
+  </div>
+
+  <!-- Group Chat -->
+  <div class="card">
+    <h3>Create Group Chat</h3>
+    <div id="group-user-list">Loading...</div>
+    <br>
+    <button onclick="createGroup()">Create Group</button>
+  </div>
+
+  <!-- Chat History -->
+  <div class="card">
+    <h3>Chat History</h3>
+    <div id="chat-history"></div>
+  </div>
+
+</div>
+
+<script>
+  let allUsers = [];
+
+  async function fetchUsers() {
+    try {
+      const response = await fetch("/accounts/api/users/", {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch users");
+      }
+
+      const data = await response.json();
+
+      const privateUsers = data.private_users || [];
+      const groupUsers = data.group_users || [];
+      const history = data.chat_history || [];
+
+      const userContainer = document.getElementById("user-list");
+      const groupContainer = document.getElementById("group-user-list");
+      const historyContainer = document.getElementById("chat-history");
+
+      userContainer.innerHTML = "";
+      groupContainer.innerHTML = "";
+      historyContainer.innerHTML = "";
+
+      allUsers = [...privateUsers, ...groupUsers];
+
+      // -----------------------
+      // Private Users
+      // -----------------------
+      privateUsers.forEach((user) => {
+        const row = document.createElement("div");
+        row.className = "row";
+
+        const span = document.createElement("span");
+        span.textContent = user.email;
+
+        const button = document.createElement("button");
+        button.textContent = "Chat";
+        button.onclick = () => startPrivateChat(user.id);
+
+        row.appendChild(span);
+        row.appendChild(button);
+        userContainer.appendChild(row);
+      });
+
+      // -----------------------
+      // Group Users
+      // -----------------------
+      groupUsers.forEach((user) => {
+        const div = document.createElement("div");
+        div.className = "checkbox-row";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = user.id;
+        checkbox.className = "group-user-checkbox";
+
+        const label = document.createElement("span");
+        label.textContent = ` ${user.email}`;
+
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        groupContainer.appendChild(div);
+      });
+
+      // -----------------------
+      // Chat History
+      // -----------------------
+      history.forEach((conv) => {
+        const row = document.createElement("div");
+        row.className = "row";
+
+        const span = document.createElement("span");
+        span.textContent = conv.name;
+
+        const small = document.createElement("small");
+        small.textContent = ` (${conv.created_at})`;
+        span.appendChild(small);
+
+        const button = document.createElement("button");
+        button.textContent = "Open";
+        button.onclick = () => {
+          window.location.href = `/chat/${conv.name}/room/`;
+        };
+
+        row.appendChild(span);
+        row.appendChild(button);
+        historyContainer.appendChild(row);
+      });
+
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      document.getElementById("user-list").innerText = "Error loading users";
+    }
+  }
+
+  // -----------------------
+  // CSRF Helper
+  // -----------------------
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.startsWith(name + "=")) {
+          cookieValue = decodeURIComponent(
+            cookie.substring(name.length + 1)
+          );
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  // -----------------------
+  // Start Private Chat
+  // -----------------------
+  async function startPrivateChat(userId) {
+    try {
+      const response = await fetch("/chat/conversation/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          type: "private",
+          member_ids: [userId],
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create private chat");
+      }
+
+      const data = await response.json();
+
+      if (data.room_name) {
+        window.location.href = `/chat/${data.room_name}/room/`;
+      }
+
+    } catch (error) {
+      console.error("Private chat error:", error);
+      alert("Unable to start private chat.");
+    }
+  }
+
+  // -----------------------
+  // Create Group Chat
+  // -----------------------
+  async function createGroup() {
+    const checkboxes = document.querySelectorAll(
+      ".group-user-checkbox:checked"
+    );
+
+    const selectedIds = Array.from(checkboxes).map((cb) =>
+      parseInt(cb.value)
+    );
+
+    if (selectedIds.length < 2) {
+      alert("Select at least 2 users");
+      return;
+    }
+
+    try {
+      const response = await fetch("/chat/conversation/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          type: "group",
+          member_ids: selectedIds,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create group chat");
+      }
+
+      const data = await response.json();
+
+      if (data.room_name) {
+        window.location.href = `/chat/${data.room_name}/room/`;
+      }
+
+    } catch (error) {
+      console.error("Group chat error:", error);
+      alert("Unable to create group chat.");
+    }
+  }
+
+  // -----------------------
+  // Logout
+  // -----------------------
+  async function logoutUser() {
+    try {
+      await fetch("/accounts/api/logout/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+        credentials: "include",
+      });
+
+      window.location.href = "/accounts/login/";
+
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  }
+
+  // Initialize
+  fetchUsers();
+</script>
+
+</body>
+</html>
