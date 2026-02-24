@@ -31,7 +31,6 @@ env/
 
 # UV package manager
 .uv/
-uv.lock
 
 # Django
 *.log
