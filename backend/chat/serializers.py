@@ -1,29 +1,55 @@
 from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from .models import Conversation
 
-class ConversationCreateSerializer(serializers.Serializer):
-    TYPE_CHOICES = (
-        ("private", "private"),
-        ("group", "group"),
-    )
+User = get_user_model()
 
-    type = serializers.ChoiceField(choices=TYPE_CHOICES)
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "email"]
+
+class ChatHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Conversation
+        fields = [
+            "id",
+            "type",
+            "created_at",
+        ]
+
+class GroupSerializer(serializers.Serializer):
+    group_name = serializers.CharField(max_length=255)
     member_ids = serializers.ListField(
         child=serializers.IntegerField(),
         allow_empty=False
     )
 
-    def validate(self, attrs):
-        conversation_type = attrs.get("type")
-        member_ids = attrs.get("member_ids")
+    def validate_member_ids(self, value):
+        request = self.context["request"]
 
-        if conversation_type == "private" and len(member_ids) != 1:
-            raise serializers.ValidationError(
-                "Private chat requires exactly one member."
-            )
+        if request.user.id in value:
+            raise serializers.ValidationError("Creator cannot be inside member_ids.")
 
-        if conversation_type == "group" and len(member_ids) < 2:
-            raise serializers.ValidationError(
-                "Group chat requires at least two members."
-            )
+        if len(set(value)) != len(value):
+            raise serializers.ValidationError("Duplicate member ids found.")
 
-        return attrs
+        users_count = User.objects.filter(id__in=value).count()
+        if users_count != len(value):
+            raise serializers.ValidationError("One or more users do not exist.")
+
+        return value
+
+class PrivateSerializer(serializers.Serializer):
+    member_id = serializers.IntegerField()
+
+    def validate_member_id(self, value):
+        request = self.context["request"]
+
+        if value == request.user.id:
+            raise serializers.ValidationError("You cannot create chat with yourself.")
+
+        if not User.objects.filter(id=value).exists():
+            raise serializers.ValidationError("User does not exist.")
+
+        return value

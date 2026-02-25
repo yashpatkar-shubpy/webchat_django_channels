@@ -6,8 +6,8 @@ from .models import Conversation, Message
 
 class Chatting(WebsocketConsumer):
     def connect(self):
-        self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
-        conversation = Conversation.objects.filter(name=self.room_name).first()
+        self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
+        conversation = Conversation.objects.filter(id=self.conversation_id).first()
 
         if not conversation:
             self.close()
@@ -18,8 +18,11 @@ class Chatting(WebsocketConsumer):
             return
 
         # Join room group
+        self.room_group_name = f"chat_{self.conversation_id}"
+
         async_to_sync(self.channel_layer.group_add)(
-            self.room_name, self.channel_name
+            self.room_group_name,
+            self.channel_name
         )
 
         self.accept()
@@ -27,7 +30,7 @@ class Chatting(WebsocketConsumer):
     def disconnect(self, close_code):
         # Leave room group
         async_to_sync(self.channel_layer.group_discard)(
-            self.room_name, self.channel_name
+            self.room_group_name, self.channel_name
         )
         
     def receive(self, text_data):
@@ -38,7 +41,7 @@ class Chatting(WebsocketConsumer):
         if not message:
             return
         
-        conversation = Conversation.objects.filter(name=self.room_name).first()
+        conversation = Conversation.objects.filter(id=self.conversation_id).first()
         if not conversation:
             return
 
@@ -49,7 +52,7 @@ class Chatting(WebsocketConsumer):
         )
 
         async_to_sync(self.channel_layer.group_send)(
-            self.room_name,
+            self.room_group_name,
             {
                 "type": "chat_message",
                 "message": message,

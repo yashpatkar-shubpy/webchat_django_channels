@@ -16,10 +16,6 @@
       margin: 0 auto;
     }
 
-    h2 {
-      margin-bottom: 10px;
-    }
-
     .card {
       background: #ffffff;
       border: 1px solid #ddd;
@@ -60,8 +56,8 @@
     }
 
     .small-text {
-      color: #555;
       font-size: 14px;
+      color: #555;
     }
   </style>
 </head>
@@ -78,13 +74,13 @@
     </div>
   </div>
 
-  <!-- 1-1 Chat -->
+  <!-- Private Users -->
   <div class="card">
     <h3>Users (1-1 Chat)</h3>
     <div id="user-list">Loading...</div>
   </div>
 
-  <!-- Group Chat -->
+  <!-- Group Creation -->
   <div class="card">
     <h3>Create Group Chat</h3>
     <div id="group-user-list">Loading...</div>
@@ -95,113 +91,139 @@
   <!-- Chat History -->
   <div class="card">
     <h3>Chat History</h3>
-    <div id="chat-history"></div>
+    <div id="chat-history">Loading...</div>
   </div>
 
 </div>
 
 <script>
-  let allUsers = [];
+  // -----------------------
+  // API Fetchers
+  // -----------------------
 
-  async function fetchUsers() {
+  async function fetchPrivateUsers() {
+    const res = await fetch("/chat/private-users/", {
+      credentials: "include"
+    });
+    if (!res.ok) throw new Error("Private users fetch failed");
+    return res.json();
+  }
+
+  async function fetchGroupUsers() {
+    const res = await fetch("/chat/group-users/", {
+      credentials: "include"
+    });
+    if (!res.ok) throw new Error("Group users fetch failed");
+    return res.json();
+  }
+
+  async function fetchChatHistory() {
+    const res = await fetch("/chat/history-chats/", {
+      credentials: "include"
+    });
+    if (!res.ok) throw new Error("Chat history fetch failed");
+    return res.json();
+  }
+
+  async function loadHomeData() {
     try {
-      const response = await fetch("/accounts/api/users/", {
-        credentials: "include",
-      });
+      const [privateUsers, groupUsers, history] = await Promise.all([
+        fetchPrivateUsers(),
+        fetchGroupUsers(),
+        fetchChatHistory()
+      ]);
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch users");
-      }
+      renderPrivateUsers(privateUsers);
+      renderGroupUsers(groupUsers);
+      renderHistory(history);
 
-      const data = await response.json();
-
-      const privateUsers = data.private_users || [];
-      const groupUsers = data.group_users || [];
-      const history = data.chat_history || [];
-
-      const userContainer = document.getElementById("user-list");
-      const groupContainer = document.getElementById("group-user-list");
-      const historyContainer = document.getElementById("chat-history");
-
-      userContainer.innerHTML = "";
-      groupContainer.innerHTML = "";
-      historyContainer.innerHTML = "";
-
-      allUsers = [...privateUsers, ...groupUsers];
-
-      // -----------------------
-      // Private Users
-      // -----------------------
-      privateUsers.forEach((user) => {
-        const row = document.createElement("div");
-        row.className = "row";
-
-        const span = document.createElement("span");
-        span.textContent = user.email;
-
-        const button = document.createElement("button");
-        button.textContent = "Chat";
-        button.onclick = () => startPrivateChat(user.id);
-
-        row.appendChild(span);
-        row.appendChild(button);
-        userContainer.appendChild(row);
-      });
-
-      // -----------------------
-      // Group Users
-      // -----------------------
-      groupUsers.forEach((user) => {
-        const div = document.createElement("div");
-        div.className = "checkbox-row";
-
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.value = user.id;
-        checkbox.className = "group-user-checkbox";
-
-        const label = document.createElement("span");
-        label.textContent = ` ${user.email}`;
-
-        div.appendChild(checkbox);
-        div.appendChild(label);
-        groupContainer.appendChild(div);
-      });
-
-      // -----------------------
-      // Chat History
-      // -----------------------
-      history.forEach((conv) => {
-        const row = document.createElement("div");
-        row.className = "row";
-
-        const span = document.createElement("span");
-        span.textContent = conv.name;
-
-        const small = document.createElement("small");
-        small.textContent = ` (${conv.created_at})`;
-        span.appendChild(small);
-
-        const button = document.createElement("button");
-        button.textContent = "Open";
-        button.onclick = () => {
-          window.location.href = `/chat/${conv.name}/room/`;
-        };
-
-        row.appendChild(span);
-        row.appendChild(button);
-        historyContainer.appendChild(row);
-      });
-
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      document.getElementById("user-list").innerText = "Error loading users";
+    } catch (err) {
+      console.error(err);
     }
+  }
+
+  // -----------------------
+  // Render Private Users
+  // -----------------------
+
+  function renderPrivateUsers(users) {
+    const container = document.getElementById("user-list");
+    container.innerHTML = "";
+
+    users.forEach(user => {
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const span = document.createElement("span");
+      span.textContent = user.email;
+
+      const button = document.createElement("button");
+      button.textContent = "Chat";
+      button.onclick = () => startPrivateChat(user.id);
+
+      row.appendChild(span);
+      row.appendChild(button);
+      container.appendChild(row);
+    });
+  }
+
+  // -----------------------
+  // Render Group Users
+  // -----------------------
+
+  function renderGroupUsers(users) {
+    const container = document.getElementById("group-user-list");
+    container.innerHTML = "";
+
+    users.forEach(user => {
+      const div = document.createElement("div");
+      div.className = "checkbox-row";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = user.id;
+      checkbox.className = "group-user-checkbox";
+
+      const label = document.createElement("span");
+      label.textContent = " " + user.email;
+
+      div.appendChild(checkbox);
+      div.appendChild(label);
+      container.appendChild(div);
+    });
+  }
+
+  // -----------------------
+  // Render Chat History
+  // -----------------------
+
+  function renderHistory(history) {
+    const container = document.getElementById("chat-history");
+    container.innerHTML = "";
+
+    history.forEach(conv => {
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const span = document.createElement("span");
+      span.textContent = `${conv.type} (${conv.created_at})`;
+
+      const button = document.createElement("button");
+      button.textContent = "Open";
+      button.onclick = () => {
+        window.location.href = `/chat/${conv.id}/`;
+      };
+
+      row.appendChild(span);
+      row.appendChild(button);
+      container.appendChild(row);
+    });
   }
 
   // -----------------------
   // CSRF Helper
   // -----------------------
+
   function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== "") {
@@ -222,33 +244,29 @@
   // -----------------------
   // Start Private Chat
   // -----------------------
+
   async function startPrivateChat(userId) {
     try {
-      const response = await fetch("/chat/conversation/", {
+      const response = await fetch("/chat/private/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-CSRFToken": getCookie("csrftoken"),
         },
         credentials: "include",
-        body: JSON.stringify({
-          type: "private",
-          member_ids: [userId],
-        }),
+        body: JSON.stringify({ member_id: userId })
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to create private chat");
-      }
+      if (!response.ok) throw new Error("Private chat failed");
 
       const data = await response.json();
 
-      if (data.room_name) {
-        window.location.href = `/chat/${data.room_name}/room/`;
+      if (data.conversation_id) {
+        window.location.href = `/chat/${data.conversation_id}/`;
       }
 
-    } catch (error) {
-      console.error("Private chat error:", error);
+    } catch (err) {
+      console.error(err);
       alert("Unable to start private chat.");
     }
   }
@@ -256,14 +274,14 @@
   // -----------------------
   // Create Group Chat
   // -----------------------
+
   async function createGroup() {
     const checkboxes = document.querySelectorAll(
       ".group-user-checkbox:checked"
     );
 
-    const selectedIds = Array.from(checkboxes).map((cb) =>
-      parseInt(cb.value)
-    );
+    const selectedIds = Array.from(checkboxes)
+      .map(cb => parseInt(cb.value));
 
     if (selectedIds.length < 2) {
       alert("Select at least 2 users");
@@ -271,7 +289,7 @@
     }
 
     try {
-      const response = await fetch("/chat/conversation/", {
+      const response = await fetch("/chat/group/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -279,23 +297,21 @@
         },
         credentials: "include",
         body: JSON.stringify({
-          type: "group",
-          member_ids: selectedIds,
-        }),
+          group_name: "New Group",
+          member_ids: selectedIds
+        })
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to create group chat");
-      }
+      if (!response.ok) throw new Error("Group creation failed");
 
       const data = await response.json();
 
-      if (data.room_name) {
-        window.location.href = `/chat/${data.room_name}/room/`;
+      if (data.conversation_id) {
+        window.location.href = `/chat/${data.conversation_id}/`;
       }
 
-    } catch (error) {
-      console.error("Group chat error:", error);
+    } catch (err) {
+      console.error(err);
       alert("Unable to create group chat.");
     }
   }
@@ -303,6 +319,7 @@
   // -----------------------
   // Logout
   // -----------------------
+
   async function logoutUser() {
     try {
       await fetch("/accounts/api/logout/", {
@@ -311,18 +328,18 @@
           "Content-Type": "application/json",
           "X-CSRFToken": getCookie("csrftoken"),
         },
-        credentials: "include",
+        credentials: "include"
       });
 
       window.location.href = "/accounts/login/";
 
-    } catch (error) {
-      console.error("Logout failed:", error);
+    } catch (err) {
+      console.error("Logout failed:", err);
     }
   }
 
   // Initialize
-  fetchUsers();
+  loadHomeData();
 </script>
 
 </body>

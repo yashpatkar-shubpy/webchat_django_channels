@@ -1,29 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
-from chat.models import Conversation
 
 User = get_user_model()
-
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ["id", "email"]
-
-class ConversationSerializer(serializers.ModelSerializer):
-    other_user_email = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Conversation
-        fields = ["id", "name", "created_at", "other_user_email"]
-
-    def get_other_user_email(self, obj):
-        request = self.context["request"]
-
-        for member in obj.members.all():
-            if member.id != request.user.id:
-                return member.email
-
-        return None
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()

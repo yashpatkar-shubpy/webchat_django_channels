@@ -71,14 +71,14 @@
 <div class="container">
 
     <div class="header">
-        <h3>You: <span id="current-user"></span></h3>
+        <h3>You: {{user_email}}</h3>
         <hr>
     </div>
 
     <div class="chat-box" id="chat-messages">
         {% for msg in messages %}
             <div class="message">
-                <strong>{{ msg.sender.email }}</strong> &gt; {{ msg.content }}
+                <strong>{{ msg.sender.email }}</strong>&gt; {{ msg.content }}
             </div>
         {% empty %}
             <div>No messages yet.</div>
@@ -92,25 +92,18 @@
 
 </div>
 
-{{ roomname|json_script:"roomname" }}
-{{ user_email|json_script:"useremail" }}
+{{ conversation_id|json_script:"conversation_id" }}
 
 <script>
-    const roomname = JSON.parse(
-        document.getElementById('roomname').textContent
+    const conversation_id = JSON.parse(
+        document.getElementById('conversation_id').textContent
     );
-
-    const currentUser = JSON.parse(
-        document.getElementById('useremail').textContent
-    );
-
-    document.getElementById("current-user").innerText = currentUser;
 
     const chatsocket = new WebSocket(
-        "ws://" + window.location.host + "/ws/chat/" + roomname + "/"
+        "ws://" + window.location.host + "/ws/chat/" + conversation_id + "/"
     );
 
-    chatsocket.onmessage = function(e) {
+    chatsocket.addEventListener('message', (e) => {
         const data = JSON.parse(e.data);
         const container = document.getElementById('chat-messages');
 
@@ -119,27 +112,22 @@
         div.innerHTML = "<strong>" + data.sender + "</strong> &gt; " + data.message;
 
         container.appendChild(div);
-
-        // Auto-scroll to bottom
         container.scrollTop = container.scrollHeight;
-    };
+    });
 
-    chatsocket.onclose = function(e){
+    chatsocket.addEventListener('close', () => {
         console.log('chat closed');
-    };
+    });
 
-    document.getElementById('chatsubmit').onclick = function(){
+    document.getElementById('chatsubmit').addEventListener('click', () => {
         const input = document.getElementById('chatbox');
         const msg = input.value.trim();
 
         if (!msg) return;
 
-        chatsocket.send(JSON.stringify({
-            message: msg
-        }));
-
+        chatsocket.send(JSON.stringify({ message: msg }));
         input.value = '';
-    };
+    });
 </script>
 
 </body>
